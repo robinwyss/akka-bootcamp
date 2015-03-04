@@ -1,47 +1,33 @@
-﻿using System;
+﻿using Akka.Actor;
 
-namespace WinTail
-{
-    #region Program
-    class Program
-    {
-        public static ActorSystem MyActorSystem;
+namespace WinTail {
 
-        static void Main(string[] args)
-        {
-            // initialize MyActorSystem
-            // YOU NEED TO FILL IN HERE
+  #region Program
 
-            PrintInstructions();
+  internal class Program {
+    public static ActorSystem MyActorSystem;
 
-            // time to make your first actors!
-            //YOU NEED TO FILL IN HERE
-            // make consoleWriterActor using these props: Props.Create(() => new ConsoleWriterActor())
-            // make consoleReaderActor using these props: Props.Create(() => new ConsoleReaderActor(consoleWriterActor))
+    private static void Main( string[] args ) {
+      // initialize MyActorSystem
+      ActorSystem actorSystem = ActorSystem.Create( "MyActorSystem" );
 
+      // time to make your first actors!
+      Props consoleWriterProps = Props.Create<ConsoleWriterActor>();
+      ActorRef consoleWriterActor = actorSystem.ActorOf( consoleWriterProps, "consoleWriterActor" );
 
-            // tell console reader to begin
-            //YOU NEED TO FILL IN HERE
+      Props validationProps = Props.Create( () => new ValidationActor( consoleWriterActor ) );
+      ActorRef validationActor = actorSystem.ActorOf( validationProps, "validationActor" );
 
-            // blocks the main thread from exiting until the actor system is shut down
-            MyActorSystem.AwaitTermination();
-        }
+      Props consoleReaderProps = Props.Create<ConsoleReaderActor>( validationActor );
+      ActorRef consoleReaderActor = actorSystem.ActorOf( consoleReaderProps, "consoleReaderActor" );
 
-        private static void PrintInstructions()
-        {
-            Console.WriteLine("Write whatever you want into the console!");
-            Console.Write("Some lines will appear as");
-            Console.ForegroundColor = ConsoleColor.DarkRed;
-            Console.Write(" red ");
-            Console.ResetColor();
-            Console.Write(" and others will appear as");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write(" green! ");
-            Console.ResetColor();
-            Console.WriteLine();
-            Console.WriteLine();
-            Console.WriteLine("Type 'exit' to quit this application at any time.\n");
-        }
+      // tell console reader to begin
+      consoleReaderActor.Tell( ConsoleReaderActor.StartCommand );
+
+      // blocks the main thread from exiting until the actor system is shut down
+      actorSystem.AwaitTermination();
     }
-    #endregion
+  }
+
+  #endregion
 }
