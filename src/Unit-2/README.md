@@ -2,19 +2,19 @@
 
 ![Akka.NET logo](../../images/akka_net_logo.png)
 
-In **[Unit 1](../Unit-1)**, we learned some of the fundamentals of Akka.NET and the actor model.
+In **[Unit 1](../Unit-1)**, we learned some of the fundamentals of Akka.NET and the Actor Model.
 
-In Unit 2 we will learn some of the more sophisticated concepts behind Akka.NET, such as pattern matching, basic Akka.NET configuration, scheduled messages, and more!
+In Unit 2 we will learn some of the more sophisticated concepts behind Akka.NET, such as pattern matching, basic Akka.NET configuration, scheduled messages, and much more!
 
 ## Concepts you'll learn
 
-In Unit 2 you're going to build your own version of Resource Monitor using Windows Forms, some of the data visualization tools built into .NET, and [Performance Counters](https://msdn.microsoft.com/en-us/library/system.diagnostics.performancecounter.aspx "PerformanceCounter Class - C#").
+In Unit 2 you're going to build your own version of Resource Monitor using Windows Forms, data visualization tools built into .NET, and [Performance Counters](https://msdn.microsoft.com/en-us/library/system.diagnostics.performancecounter.aspx "PerformanceCounter Class - C#").
 
 In fact, here's what the final output from lesson 5 looks like:
 
 ![Akka.NET Bootcamp Unit 2 Output](lesson5/images/syncharting-complete-output.gif)
 
-**You're going to build this whole thing using actors**, and you'll be surprised at how small your code footprint is when we're finished.
+**You're going to build this whole thing using actors**, and you'll be surprised at how small your code footprint is when we're done.
 
 In Unit 2 you will learn:
 
