@@ -7,7 +7,7 @@ namespace GithubActors.Actors
     /// <summary>
     /// Top-level actor responsible for coordinating and launching repo-processing jobs
     /// </summary>
-    public class GithubCommanderActor : ReceiveActor, WithUnboundedStash
+    public class GithubCommanderActor : ReceiveActor, IWithUnboundedStash
     {
         #region Message classes
 
@@ -43,8 +43,8 @@ namespace GithubActors.Actors
 
         #endregion
 
-        private ActorRef _coordinator;
-        private ActorRef _canAcceptJobSender;
+        private IActorRef _coordinator;
+        private IActorRef _canAcceptJobSender;
         private int pendingJobReplies;
 
         public GithubCommanderActor()
@@ -111,7 +111,7 @@ namespace GithubActors.Actors
             var c2 = Context.ActorOf(Props.Create(() => new GithubCoordinatorActor()), ActorPaths.GithubCoordinatorActor.Name + "2");
             var c3 = Context.ActorOf(Props.Create(() => new GithubCoordinatorActor()), ActorPaths.GithubCoordinatorActor.Name + "3");
 
-            //create a broadcast router who will ask all if them if they're available for work
+            //create a broadcast router who will ask all of them if they're available for work
             _coordinator =
                 Context.ActorOf(Props.Empty.WithRouter(new BroadcastGroup(ActorPaths.GithubCoordinatorActor.Path + "1",
                     ActorPaths.GithubCoordinatorActor.Path + "2", ActorPaths.GithubCoordinatorActor.Path + "3")));

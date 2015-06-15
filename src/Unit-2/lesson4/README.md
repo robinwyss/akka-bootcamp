@@ -1,6 +1,6 @@
-# Lesson 2.4: Switching Actor Behavior at Run-time with `Become` and `Unbecome`
+# Lesson 2.4: Switching Actor Behavior at Run-time with `BecomeStacked` and `UnbecomeStacked`
 
-In this lesson we're going to learn about one of the really cool things actors can do: [change their behavior at run-time](http://getakka.net/wiki/Working%20with%20actors#hotswap "Akka.NET - Actor behavior hotswap")!
+In this lesson we're going to learn about one of the really cool things actors can do: [change their behavior at run-time](http://getakka.net/docs/Working%20with%20actors#hotswap "Akka.NET - Actor behavior hotswap")!
 
 ## Key Concepts / Background
 Let's start with a real-world scenario in which you'd want the ability to change an actor's behavior.
@@ -52,25 +52,37 @@ Akka.NET actors have the concept of a "behavior stack". Whichever method sits at
 
 ![Initial Behavior Stack for UserActor](images/behaviorstack-initialization.png)
 
-#### Use `Become` to adopt a new behavior
-Whenever we call `Become`, we tell the `ReceiveActor` to push a new behavior onto the stack. This new behavior dictates which `Receive` methods will be used to process any messages delivered to an actor.
+#### Use `Become` and `BecomeStacked` to adopt new behavior
+Whenever we call [`BecomeStacked`](http://api.getakka.net/docs/stable/html/33B96712.htm "Akka.NET Stable API - BecomeStacked method"), we tell the `ReceiveActor` to push a new behavior onto the stack. This new behavior dictates which `Receive` methods will be used to process any messages delivered to an actor.
 
-Here's what happens to the behavior stack when our example actor `Become`s `Authenticated`:
+Here's what happens to the behavior stack when our example actor becomes `Authenticated` via `BecomeStacked`:
 
 ![Become Authenticated - push a new behavior onto the stack](images/behaviorstack-become.gif)
 
-> NOTE: By default, `Become` will delete the old behavior off of the stack - so the stack will never have more than one behavior in it at a time. This is because most Akka.NET users don't use `Unbecome`.
+> NOTE: [`Become`](http://api.getakka.net/docs/stable/html/1DBD4D33.htm "Akka.NET Stable API - Become method") will delete the old behavior off of the stack - so the stack will never have more than one behavior in it at a time.
 >
-> To preserve the previous behavior on the stack, call `Become(Method(), false)`
+> Use [`BecomeStacked`](http://api.getakka.net/docs/stable/html/33B96712.htm "Akka.NET Stable API Docs - BecomeStacked method") if you want to push behavior onto the stack, and [`UnbecomeStacked`](http://api.getakka.net/docs/stable/html/7D8311A9.htm "Akka.NET Stable API Docs - UnbecomeStacked method") if you want to revert to a previous behavior. Most users only ever need to use `Become`.
 
-#### Use `Unbecome` to revert to old behavior
-To make an actor revert to the previous behavior, all we have to do is call `Unbecome`.
 
-Whenever we call `Unbecome`, we pop our current behavior off of the stack and replace it with the previous behavior from before (again, this new behavior will dictate which `Receive` methods are used to handle incoming messages).
+#### Use `UnbecomeStacked` to revert to old behavior
+To make an actor revert to the previous behavior in the behavior stack, all we have to do is call `UnbecomeStacked`.
 
-Here's what happens to the behavior stack when our example actor `Unbecome`s:
+Whenever we call `UnbecomeStacked`, we pop our current behavior off of the stack and replace it with the previous behavior from before (again, this new behavior will dictate which `Receive` methods are used to handle incoming messages).
+
+Here's what happens to the behavior stack when our example actor `UnbecomeStacked`s:
 
 ![Unbecome - pop the current behavior off of the stack](images/behaviorstack-unbecome.gif)
+
+
+#### What is the API to change behaviors?
+The API to change behaviors is very simple:
+
+* `Become` - Replaces the current receive loop with the specified one. Eliminates the behavior stack.
+* `BecomeStacked` - Adds the specified method to the top of the behavior stack, while maintaining the previous ones below it;
+* `UnbecomeStacked` - Reverts to the previous receive method from the stack (only works with `BecomeStacked`).
+
+The difference is that `BecomeStacked` preserves the old behavior, so you can just call `UnbecomeStacked` to go back to the previous behavior. The preference of one over the other depends on your needs. You can call `BecomeStacked` as many times as you need, and you can call `UnbecomeStacked` as many times as you called `BecomeStacked`. Additional calls to `UnbecomeStacked` won't do anything if the current behavior is the only behavior in the stack.
+
 
 ### Isn't it problematic for actors to change behaviors?
 No, actually it's safe and is a feature that gives your `ActorSystem` a ton of flexibility and code reuse.
@@ -80,14 +92,20 @@ Here are some common questions about switchable behavior:
 #### When is the new behavior applied?
 We can safely switch actor message-processing behavior because [Akka.NET actors only process one message at a time](http://petabridge.com/blog/akkadotnet-async-actors-using-pipeto/). The new message processing behavior won't be applied until the next message arrives.
 
+#### Isn't it bad that `Become` blows away the behavior stack?
+No, not really. This is the way it's most commonly used, by far. Explicitly switching from one behavior to another is the most common approach used for switching behavior. Simple, explicit switches also make it much easier to read and reason about your code.
+
+If you find you actually need to take advantage of the behavior stack—and a simple, explicit `Become(YourNewBehavior)` won't work for the situation—the behavior stack is available to you.
+
+In this lesson, we use `BecomeStacked` and `UnbecomeStacked` to demonstrate them. Usually we just use `Become`.
+
 #### How deep can the behavior stack go?
 The stack can go *really* deep, but it's not unlimited.
 
 Also, each time your actor restarts, the behavior stack is cleared and the actor starts from the initial behavior you've coded.
 
-#### What happens if you call `Unbecome` and with nothing left in the behavior stack?
-The answer is: *nothing* - `Unbecome` is a safe method and won't do anything unless there's more than one behavior in the stack.
-
+#### What happens if you call `UnbecomeStacked` and with nothing left in the behavior stack?
+*Nothing* - `UnbecomeStacked` is a safe method and won't do anything if the current behavior is the only behavior in the stack.
 
 ### Back to the real-world example
 Okay, now that you understand switchable behavior, let's return to our real-world scenario and see how it is used. Recall that we need to add authentication to our chat system actor.
@@ -174,15 +192,16 @@ We called `Authenticating()` from the constructor, so our actor began in the `Au
 
 *This means that only the `Receive<T>` handlers defined in the `Authenticating()` method will be used to process messages (initially)*.
 
-However, if we receive a message of type `AuthenticationSuccess` or `AuthenticationFailure`, we use the `Become` method ([docs](http://getakka.net/wiki/ReceiveActor#become "Akka.NET - ReceiveActor Become")) to switch behaviors to either `Authenticated` or `Unauthenticated`, respectively.
+However, if we receive a message of type `AuthenticationSuccess` or `AuthenticationFailure`, we use the `Become` method ([docs](http://getakka.net/docs/ReceiveActor#become "Akka.NET - ReceiveActor Become")) to switch behaviors to either `Authenticated` or `Unauthenticated`, respectively.
 
 ### Can I switch behaviors in an `UntypedActor`?
-Yes, but the syntax is a little different inside an `UntypedActor`. To switch behaviors in an `UntypedActor`, you have to access `Become` and `Unbecome` via the `ActorContext`, instead of calling them directly.
+Yes, but the syntax is a little different inside an `UntypedActor`. To switch behaviors in an `UntypedActor`, you have to access `BecomeStacked` and `UnbecomeStacked` via the `ActorContext`, instead of calling them directly.
 
 These are the API calls inside an `UntypedActor`:
 
-* `Context.Become(Receive rec, bool discardPrevious = true)` - pushes a new behavior on the stack or
-* `Context.Unbecome()` - pops the current behavior and switches to the previous (if applicable.)
+* `Context.Become(Receive rec)` - changes behavior without preservering the previous behavior on the stack;
+* `Context.BecomeStacked(Receive rec)` - pushes a new behavior on the stack or
+* `Context.UnbecomeStacked()` - pops the current behavior and switches to the previous (if applicable.)
 
 The first argument to `Context.Become` is a `Receive` delegate, which is really any method with the following signature:
 
@@ -199,7 +218,7 @@ public class MyActor : UntypedActor {
 	protected override void OnReceive(object message) {
 		if(message is SwitchMe) {
 			// preserve the previous behavior on the stack
-			Context.Become(OtherBehavior, false);
+			Context.BecomeStacked(OtherBehavior);
 		}
 	}
 
@@ -207,7 +226,7 @@ public class MyActor : UntypedActor {
 	private void OtherBehavior(object message) {
 		if(message is SwitchMeBack) {
 			// switch back to previous behavior on the stack
-			Context.Unbecome();
+			Context.UnbecomeStacked();
 		}
 	}
 }
@@ -287,7 +306,7 @@ private void Charting()
     Receive<TogglePause>(pause =>
     {
         SetPauseButtonText(true);
-        Become(Paused, false);
+        BecomeStacked(Paused);
     });
 }
 ```
@@ -328,7 +347,7 @@ private void Paused()
     Receive<TogglePause>(pause =>
     {
         SetPauseButtonText(false);
-        Unbecome();
+        UnbecomeStacked();
     });
 }
 ```
@@ -346,19 +365,6 @@ public ChartingActor(Chart chart, Dictionary<string, Series> seriesIndex, Button
     _seriesIndex = seriesIndex;
     _pauseButton = pauseButton;
     Charting();
-}
-
-private void Charting()
-{
-    Receive<InitializeChart>(ic => HandleInitialize(ic));
-    Receive<AddSeries>(addSeries => HandleAddSeries(addSeries));
-    Receive<RemoveSeries>(removeSeries => HandleRemoveSeries(removeSeries));
-    Receive<Metric>(metric => HandleMetrics(metric));
-    Receive<TogglePause>(pause =>
-    {
-        SetPauseButtonText(true);
-        Become(Paused, false);
-    });
 }
 ```
 
@@ -412,4 +418,4 @@ What happens if I toggle a chart on or off when the `ChartingActor` is in a paus
 Come ask any questions you have, big or small, [in this ongoing Bootcamp chat with the Petabridge & Akka.NET teams](https://gitter.im/petabridge/akka-bootcamp).
 
 ### Problems with the code?
-If there is a problem with the code running, or something else that needs to be fixed in this lesson, please [create an issue](/issues) and we'll get right on it. This will benefit everyone going through Bootcamp.
+If there is a problem with the code running, or something else that needs to be fixed in this lesson, please [create an issue](https://github.com/petabridge/akka-bootcamp/issues) and we'll get right on it. This will benefit everyone going through Bootcamp.

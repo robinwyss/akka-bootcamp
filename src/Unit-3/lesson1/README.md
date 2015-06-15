@@ -5,7 +5,7 @@ Over the course of Unit 3, you're going to build a sophisticated GitHub scraper 
 
 > ***Heads up: This lesson is the most critical (and longest) of all the lessons in Unit 3. Grab some coffee and get comfortable!***
 
-The most important new concept we need to learn is `Router`s ([docs](http://getakka.net/wiki/Routing)). Let's get going.
+The most important new concept we need to learn is `Router`s ([docs](http://getakka.net/docs/Routing)). Let's get going.
 
 ## Key Concepts / Background
 ### `Router`s
@@ -27,7 +27,7 @@ Since a `Router` does not need to actually process messages and take any signifi
 
 On the surface, `Router`s look like normal actors, but they are actually implemented differently. Routers are designed to be extremely efficient at one thing: receiving messages and quickly passing them on to routees.
 
-A normal actor *can* be used for routing messages, but a normal actor's single-threaded processing can become a bottleneck. Routers achieve much higher throughput by changing the usual message-processing pipeline to allow concurrent message routing. This is achieved by embedding the routing logic of a `Router` directly in their `ActorCell` itself (the mesh between the actor's mailbox and the actor,) rather than in the receive loop / message-handling code of the router actor. This way, messages sent to a router's `ActorRef` are immediately routed to the routee, bypassing the single-threaded message-handling code of the router's actor entirely.
+A normal actor *can* be used for routing messages, but a normal actor's single-threaded processing can become a bottleneck. Routers achieve much higher throughput by changing the usual message-processing pipeline to allow concurrent message routing. This is achieved by embedding the routing logic of a `Router` directly in their `ActorCell` itself (the mesh between the actor's mailbox and the actor,) rather than in the receive loop / message-handling code of the router actor. This way, messages sent to a router's `IActorRef` are immediately routed to the routee, bypassing the single-threaded message-handling code of the router's actor entirely.
 
 Fortunately, *all of this complexity is invisible to consumers of the routing API*.
 
@@ -144,7 +144,7 @@ Regardless of its `RoutingStrategy`, there are a few special messages that you c
 #### `Broadcast`
 Sending a `Broadcast` message to a non-`Broadcast` router makes the router act like a `BroadcastRouter` for that single message. After the message is processed, the router will return to its normal `RoutingStrategy`.
 
-When would you use this? It doesn't come up very often, but one use case we can think of is if you a group of routees all needed to take some action in response to a global-level event.
+When would you use this? It doesn't come up very often, but one use case we can think of is if a group of routees all needed to take some action in response to a global-level event.
 
 For example, perhaps you have a group of actors that all must be alerted if a critical system goes down. In this case, you could send their router a `Broadcast` message and all the routees would be alerted.
 
@@ -181,7 +181,7 @@ Great! Now that you know what the different kinds of routers are, and how to use
 
 Recall that group routers do not create their routees, but instead are passed the `ActorPath`s of their routees. This means that those routees exist somewhere else in the hierarchy, and are managed by whatever other parent actors created them.
 
-Practically, this means that a group router usually won't know that its routees have died. A group router will attempt to [`DeathWatch`](http://getakka.net/wiki/Supervision#what-lifecycle-monitoring-means) its routees, but it doesn't always succeed in subscribing. Much of this is due to the fact that `ActorPath`s can have wildcards.
+Practically, this means that a group router usually won't know that its routees have died. A group router will attempt to [`DeathWatch`](http://getakka.net/docs/Supervision#what-lifecycle-monitoring-means) its routees, but it doesn't always succeed in subscribing. Much of this is due to the fact that `ActorPath`s can have wildcards.
 
 #### Isn't it bad that group routers usually don't know their routees have died?
 Yes, it is bad.
@@ -205,12 +205,12 @@ The current state of our actor hierarchy for processing GitHub repositories curr
 
 We're going to modify the `GithubCommanderActor` to use a `BroadcastGroup` router so we can run multiple jobs in parallel by the end of this lesson!
 
-### Phase 1 - Add `WithUnboundedStash` to the `GithubCommanderActor`
+### Phase 1 - Add `IWithUnboundedStash` to the `GithubCommanderActor`
 Open `Actors\GithubCommanderActor.cs` and make the following changes to the actor declaration:
 
 ```csharp
 // Actors\GithubCommanderActor.cs
-public class GithubCommanderActor : ReceiveActor, WithUnboundedStash
+public class GithubCommanderActor : ReceiveActor, IWithUnboundedStash
 ```
 
 And then add the `Stash` property to `GithubCommanderActor` somewhere
@@ -303,7 +303,7 @@ protected override void PreStart()
     var c2 = Context.ActorOf(Props.Create(() => new GithubCoordinatorActor()), ActorPaths.GithubCoordinatorActor.Name + "2");
     var c3 = Context.ActorOf(Props.Create(() => new GithubCoordinatorActor()), ActorPaths.GithubCoordinatorActor.Name + "3");
 
-    // create a broadcast router who will ask all if them if they're available for work
+    // create a broadcast router who will ask all of them if they're available for work
     _coordinator =
         Context.ActorOf(Props.Empty.WithRouter(new BroadcastGroup(ActorPaths.GithubCoordinatorActor.Path + "1",
             ActorPaths.GithubCoordinatorActor.Path + "2", ActorPaths.GithubCoordinatorActor.Path + "3")));
@@ -337,4 +337,4 @@ Awesome job! You've successfully used Akka.NET routers to achieve the first laye
 Come ask any questions you have, big or small, [in this ongoing Bootcamp chat with the Petabridge & Akka.NET teams](https://gitter.im/petabridge/akka-bootcamp).
 
 ### Problems with the code?
-If there is a problem with the code running, or something else that needs to be fixed in this lesson, please [create an issue](/issues) and we'll get right on it. This will benefit everyone going through Bootcamp.
+If there is a problem with the code running, or something else that needs to be fixed in this lesson, please [create an issue](https://github.com/petabridge/akka-bootcamp/issues) and we'll get right on it. This will benefit everyone going through Bootcamp.

@@ -10,7 +10,7 @@ namespace ChartApp
 {
     public partial class Main : Form
     {
-        private ActorRef _chartActor;
+        private IActorRef _chartActor;
         private readonly AtomicCounter _seriesCounter = new AtomicCounter(1);
 
         public Main()
@@ -29,6 +29,15 @@ namespace ChartApp
             {
                 {series.Name, series}
             }));
+        }
+
+        private void Main_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            //shut down the charting actor
+            _chartActor.Tell(PoisonPill.Instance);
+
+            //shut down the ActorSystem
+            Program.ChartActors.Shutdown();
         }
 
         #endregion

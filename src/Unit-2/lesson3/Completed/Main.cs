@@ -9,10 +9,10 @@ namespace ChartApp
 {
     public partial class Main : Form
     {
-        private ActorRef _chartActor;
+        private IActorRef _chartActor;
         private AtomicCounter _seriesCounter = new AtomicCounter(1);
-        private ActorRef _coordinatorActor;
-        private Dictionary<CounterType, ActorRef> _toggleActors = new Dictionary<CounterType, ActorRef>();
+        private IActorRef _coordinatorActor;
+        private Dictionary<CounterType, IActorRef> _toggleActors = new Dictionary<CounterType, IActorRef>();
 
         public Main()
         {
@@ -46,6 +46,15 @@ namespace ChartApp
 
             //Set the CPU toggle to ON so we start getting some data
             _toggleActors[CounterType.Cpu].Tell(new ButtonToggleActor.Toggle());
+        }
+
+        private void Main_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            //shut down the charting actor
+            _chartActor.Tell(PoisonPill.Instance);
+
+            //shut down the ActorSystem
+            Program.ChartActors.Shutdown();
         }
 
         #endregion
