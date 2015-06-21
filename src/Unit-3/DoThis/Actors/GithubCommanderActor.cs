@@ -8,7 +8,7 @@ namespace GithubActors.Actors
     /// <summary>
     /// Top-level actor responsible for coordinating and launching repo-processing jobs
     /// </summary>
-    public class GithubCommanderActor : ReceiveActor
+    public class GithubCommanderActor : ReceiveActor, IWithUnboundedStash
     {
         #region Message classes
 
@@ -46,36 +46,65 @@ namespace GithubActors.Actors
 
         private IActorRef _coordinator;
         private IActorRef _canAcceptJobSender;
+      
+      private int pendingJobReplies;
 
-        public GithubCommanderActor()
-        {
-            Receive<CanAcceptJob>(job =>
-            {
-                _canAcceptJobSender = Sender;
-                _coordinator.Tell(job);
-            });
-
-            Receive<UnableToAcceptJob>(job =>
-            {
-                _canAcceptJobSender.Tell(job);
-            });
-
-            Receive<AbleToAcceptJob>(job =>
-            {
-                _canAcceptJobSender.Tell(job);
-
-                //start processing messages
-                _coordinator.Tell(new GithubCoordinatorActor.BeginJob(job.Repo));
-
-                //launch the new window to view results of the processing
-                Context.ActorSelection(ActorPaths.MainFormActor.Path).Tell(new MainFormActor.LaunchRepoResultsWindow(job.Repo, Sender));
-            });
+        public GithubCommanderActor() {
+          Ready();
         }
 
-        protected override void PreStart()
-        {
-            _coordinator = Context.ActorOf(Props.Create(() => new GithubCoordinatorActor()), ActorPaths.GithubCoordinatorActor.Name);
-            base.PreStart();
+        private void Ready() {
+          Receive<CanAcceptJob>( job => {
+            _coordinator.Tell( job );
+
+            BecomeAsking();
+          } );
+        }
+
+        private void BecomeAsking() {
+          _canAcceptJobSender = Sender;
+          // block, but ask the router for the number of routees. Avoids magic numbers.
+          pendingJobReplies = _coordinator.Ask<Routees>( new GetRoutees() ).Result.Members.Count();
+          Become( Asking );
+        }
+
+        private void Asking() {
+          // stash any subsequent requests
+          Receive<CanAcceptJob>( job => Stash.Stash() );
+
+          Receive<UnableToAcceptJob>( job => {
+            pendingJobReplies--;
+            if ( pendingJobReplies == 0 ) {
+              _canAcceptJobSender.Tell( job );
+              BecomeReady();
+            }
+          } );
+
+          Receive<AbleToAcceptJob>( job => {
+            _canAcceptJobSender.Tell( job );
+
+            // start processing messages
+            Sender.Tell( new GithubCoordinatorActor.BeginJob( job.Repo ) );
+
+            // launch the new window to view results of the processing
+            Context.ActorSelection( ActorPaths.MainFormActor.Path ).Tell(
+                new MainFormActor.LaunchRepoResultsWindow( job.Repo, Sender ) );
+
+            BecomeReady();
+          } );
+        }
+
+        private void BecomeReady() {
+          Become( Ready );
+          Stash.UnstashAll();
+        }
+
+        protected override void PreStart() {
+          // create a broadcast router who will ask all of them if they're available for work
+          _coordinator =
+              Context.ActorOf( Props.Create( () => new GithubCoordinatorActor() ).WithRouter( FromConfig.Instance ),
+              ActorPaths.GithubCoordinatorActor.Name );
+          base.PreStart();
         }
 
         protected override void PreRestart(Exception reason, object message)
@@ -84,5 +113,7 @@ namespace GithubActors.Actors
             _coordinator.Tell(PoisonPill.Instance);
             base.PreRestart(reason, message);
         }
+
+      public IStash Stash { get; set; }
     }
 }
